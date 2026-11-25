@@ -9,7 +9,7 @@ manifest:
     - name: infused-kim
       url-base: https://github.com/infused-kim
     - name: klesh
-      url-base: https://github.com/klesh
+      url-base: https://github.com/Violin-2995
   projects:
     - name: zephyr
       remote: zmkfirmware
