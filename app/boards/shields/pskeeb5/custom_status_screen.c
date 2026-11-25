@@ -82,6 +82,8 @@ static void animate_splash(lv_timer_t *timer) {
 
 /* Compact three-column layout on the split peripheral OLED. */
 #if IS_ENABLED(CONFIG_ZMK_WIDGET_SYNC_BATTERY_STATUS)
+#include "yuan_status_font.h"
+
 static void status_cell(lv_obj_t *obj, lv_align_t align, int32_t x,
                         int32_t width, lv_text_align_t text_align) {
     lv_obj_set_style_text_font(obj, &lv_font_montserrat_12, LV_PART_MAIN);
@@ -90,6 +92,15 @@ static void status_cell(lv_obj_t *obj, lv_align_t align, int32_t x,
     lv_obj_set_size(obj, width, 16);
     lv_obj_set_style_text_align(obj, text_align, LV_PART_MAIN);
     lv_obj_align(obj, align, x, 0);
+}
+
+/* Replace only selected glyphs; use Montserrat 12 fallback for the rest. */
+static void mixed_status_cell(lv_obj_t *obj, lv_align_t align, int32_t x,
+                              int32_t width, lv_text_align_t text_align,
+                              const lv_font_t *font) {
+    status_cell(obj, align, x, width, text_align);
+    lv_obj_set_style_text_font(obj, font, LV_PART_MAIN);
+    lv_obj_set_style_text_letter_space(obj, 0, LV_PART_MAIN);
 }
 #endif
 
@@ -109,8 +120,8 @@ static void show_status_screen(lv_timer_t *timer) {
 #if IS_ENABLED(CONFIG_ZMK_WIDGET_BATTERY_STATUS)
     zmk_widget_battery_status_init(&battery_status_widget, screen);
 #if IS_ENABLED(CONFIG_ZMK_WIDGET_SYNC_BATTERY_STATUS)
-    status_cell(zmk_widget_battery_status_obj(&battery_status_widget),
-                LV_ALIGN_TOP_RIGHT, 0, 51, LV_TEXT_ALIGN_RIGHT);
+    mixed_status_cell(zmk_widget_battery_status_obj(&battery_status_widget),
+                LV_ALIGN_TOP_RIGHT, -1, 51, LV_TEXT_ALIGN_RIGHT, &yuan_battery_font);
 #else
     lv_obj_align(zmk_widget_battery_status_obj(&battery_status_widget), LV_ALIGN_TOP_RIGHT, 0, 0);
 #endif
@@ -123,7 +134,12 @@ static void show_status_screen(lv_timer_t *timer) {
 
 #if IS_ENABLED(CONFIG_ZMK_WIDGET_PERIPHERAL_STATUS)
     zmk_widget_peripheral_status_init(&peripheral_status_widget, screen);
+#if IS_ENABLED(CONFIG_ZMK_WIDGET_SYNC_BATTERY_STATUS)
+    mixed_status_cell(zmk_widget_peripheral_status_obj(&peripheral_status_widget),
+                     LV_ALIGN_TOP_LEFT, 1, 39, LV_TEXT_ALIGN_LEFT, &yuan_link_font);
+#else
     lv_obj_align(zmk_widget_peripheral_status_obj(&peripheral_status_widget), LV_ALIGN_TOP_LEFT, 0, 0);
+#endif
 #endif
 
 #if IS_ENABLED(CONFIG_ZMK_WIDGET_LAYER_STATUS)
@@ -157,8 +173,8 @@ static void show_status_screen(lv_timer_t *timer) {
 #if IS_ENABLED(CONFIG_ZMK_WIDGET_SYNC_OUTPUT_STATUS)
     zmk_widget_sync_output_status_init(&sync_output_widget, screen);
 #if IS_ENABLED(CONFIG_ZMK_WIDGET_SYNC_BATTERY_STATUS)
-    status_cell(zmk_widget_sync_output_status_obj(&sync_output_widget),
-                LV_ALIGN_BOTTOM_LEFT, 0, 40, LV_TEXT_ALIGN_LEFT);
+    mixed_status_cell(zmk_widget_sync_output_status_obj(&sync_output_widget),
+                LV_ALIGN_BOTTOM_LEFT, 1, 39, LV_TEXT_ALIGN_LEFT, &yuan_link_font);
 #else
     lv_obj_align(zmk_widget_sync_output_status_obj(&sync_output_widget), LV_ALIGN_BOTTOM_LEFT, 0, 0);
 #endif
@@ -176,8 +192,8 @@ static void show_status_screen(lv_timer_t *timer) {
 
 #if IS_ENABLED(CONFIG_ZMK_WIDGET_SYNC_BATTERY_STATUS)
     zmk_widget_sync_battery_status_init(&sync_battery_widget, screen);
-    status_cell(zmk_widget_sync_battery_status_obj(&sync_battery_widget),
-                LV_ALIGN_BOTTOM_RIGHT, 0, 51, LV_TEXT_ALIGN_RIGHT);
+    mixed_status_cell(zmk_widget_sync_battery_status_obj(&sync_battery_widget),
+                LV_ALIGN_BOTTOM_RIGHT, -1, 51, LV_TEXT_ALIGN_RIGHT, &yuan_battery_font);
 #endif
 }
 
