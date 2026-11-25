@@ -5,6 +5,8 @@
  */
 
 #include <zephyr/kernel.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
@@ -23,10 +25,6 @@ static struct zmk_sync_output_state get_state(const zmk_event_t *eh) {
         return (struct zmk_sync_output_state){0};
     }
     return *ev;
-    // return (struct zmk_sync_output_state){.selected_endpoint = ev->selected_endpoint,
-    //                                       .active_profile_connected =
-    //                                       ev->active_profile_connected, .active_profile_bonded =
-    //                                       ev->active_profile_bonded};
 }
 
 static void set_status_symbol(lv_obj_t *label, struct zmk_sync_output_state state) {
@@ -45,8 +43,6 @@ static void set_status_symbol(lv_obj_t *label, struct zmk_sync_output_state stat
                                     ? state.selected_endpoint.ble.profile_index
                                     : state.active_profile_index;
 
-        // When not connected to a selected endpoint, show the active BLE profile state so
-        // profile switching (open/gear, bonded/disconnected/cross) remains visible.
         if (connected && transport != ZMK_TRANSPORT_BLE) {
             strcat(text, LV_SYMBOL_CLOSE);
             break;
@@ -54,14 +50,15 @@ static void set_status_symbol(lv_obj_t *label, struct zmk_sync_output_state stat
 
         if (state.active_profile_bonded) {
             if (state.active_profile_connected) {
-                snprintf(text, sizeof(text), LV_SYMBOL_WIFI " %i " LV_SYMBOL_OK, profile_index + 1);
+                snprintf(text, sizeof(text), LV_SYMBOL_BLUETOOTH " %u " LV_SYMBOL_OK,
+                         (unsigned int)profile_index + 1);
             } else {
-                snprintf(text, sizeof(text), LV_SYMBOL_WIFI " %i " LV_SYMBOL_CLOSE,
-                         profile_index + 1);
+                snprintf(text, sizeof(text), LV_SYMBOL_BLUETOOTH " %u " LV_SYMBOL_CLOSE,
+                         (unsigned int)profile_index + 1);
             }
         } else {
-            snprintf(text, sizeof(text), LV_SYMBOL_WIFI " %i " LV_SYMBOL_SETTINGS,
-                     profile_index + 1);
+            snprintf(text, sizeof(text), LV_SYMBOL_BLUETOOTH " %u " LV_SYMBOL_SETTINGS,
+                     (unsigned int)profile_index + 1);
         }
         break;
     }
@@ -82,9 +79,7 @@ ZMK_SUBSCRIPTION(widget_sync_output_status, zmk_sync_output_state);
 int zmk_widget_sync_output_status_init(struct zmk_widget_sync_output_status *widget,
                                        lv_obj_t *parent) {
     widget->obj = lv_label_create(parent);
-
     sys_slist_append(&widgets, &widget->node);
-
     widget_sync_output_status_init();
     return 0;
 }
