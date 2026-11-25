@@ -5,6 +5,7 @@
  */
 
 #include <zephyr/kernel.h>
+#include <stdio.h>
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
@@ -27,36 +28,32 @@ struct battery_status_state {
 };
 
 static void set_battery_symbol(lv_obj_t *label, struct battery_status_state state) {
-    char text[9] = {};
-
+    char text[16];
     uint8_t level = state.level;
+    const char *symbol;
 
-    bool hide_level = false;
+    if (level > 95) {
+        symbol = LV_SYMBOL_BATTERY_FULL;
+    } else if (level > 65) {
+        symbol = LV_SYMBOL_BATTERY_3;
+    } else if (level > 35) {
+        symbol = LV_SYMBOL_BATTERY_2;
+    } else if (level > 5) {
+        symbol = LV_SYMBOL_BATTERY_1;
+    } else {
+        symbol = LV_SYMBOL_BATTERY_EMPTY;
+    }
+
 #if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
     if (state.usb_present) {
-        strcpy(text, LV_SYMBOL_CHARGE " ");
-        hide_level = true;
+        symbol = LV_SYMBOL_CHARGE;
     }
-#endif /* IS_ENABLED(CONFIG_USB_DEVICE_STACK) */
-
-    if (!hide_level) {
-#if IS_ENABLED(CONFIG_ZMK_WIDGET_BATTERY_STATUS_SHOW_PERCENTAGE)
-        char perc[5] = {};
-        snprintf(perc, sizeof(perc), "%3u%%", level);
-        strcat(text, perc);
-#else
-        if (level > 95) {
-            strcat(text, LV_SYMBOL_BATTERY_FULL);
-        } else if (level > 65) {
-            strcat(text, LV_SYMBOL_BATTERY_3);
-        } else if (level > 35) {
-            strcat(text, LV_SYMBOL_BATTERY_2);
-        } else if (level > 5) {
-            strcat(text, LV_SYMBOL_BATTERY_1);
-        } else {
-            strcat(text, LV_SYMBOL_BATTERY_EMPTY);
-        }
 #endif
+
+    if (level <= 100) {
+        snprintf(text, sizeof(text), "%s%u%%", symbol, (unsigned int)level);
+    } else {
+        snprintf(text, sizeof(text), "%s--%%", symbol);
     }
     lv_label_set_text(label, text);
 }
@@ -73,23 +70,20 @@ static struct battery_status_state battery_status_get_state(const zmk_event_t *e
         .level = (ev != NULL) ? ev->state_of_charge : zmk_battery_state_of_charge(),
 #if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
         .usb_present = zmk_usb_is_powered(),
-#endif /* IS_ENABLED(CONFIG_USB_DEVICE_STACK) */
+#endif
     };
 }
 
 ZMK_DISPLAY_WIDGET_LISTENER(widget_battery_status, struct battery_status_state,
                             battery_status_update_cb, battery_status_get_state)
-
 ZMK_SUBSCRIPTION(widget_battery_status, zmk_battery_state_changed);
 #if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
 ZMK_SUBSCRIPTION(widget_battery_status, zmk_usb_conn_state_changed);
-#endif /* IS_ENABLED(CONFIG_USB_DEVICE_STACK) */
+#endif
 
 int zmk_widget_battery_status_init(struct zmk_widget_battery_status *widget, lv_obj_t *parent) {
     widget->obj = lv_label_create(parent);
-
     sys_slist_append(&widgets, &widget->node);
-
     widget_battery_status_init();
     return 0;
 }
