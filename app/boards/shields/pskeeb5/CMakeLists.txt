@@ -1,3 +1,10 @@
 if(CONFIG_ZMK_DISPLAY_STATUS_SCREEN_CUSTOM)
     target_sources(app PRIVATE custom_status_screen.c)
 endif()
+# YUAN V3 isolated shield sources
+if(CONFIG_SHIELD_PSKEEB5_RIGHT AND CONFIG_ZMK_BLE AND CONFIG_ZMK_SYNC_LAYER)
+    target_sources(app PRIVATE yuan_special.c)
+endif()
+if(CONFIG_SHIELD_PSKEEB5_LEFT AND CONFIG_ZMK_DISPLAY_STATUS_SCREEN_CUSTOM AND CONFIG_ZMK_WIDGET_SYNC_LAYER_STATUS)
+    target_sources(app PRIVATE yuan_special_oled.c)
+endif()

@@ -11,6 +11,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/display.h>
 #include <zmk/display/widgets/sync_layer_status.h>
 #include <zmk/events/sync_layer_state.h>
+#include <zmk/yuan_special.h>
 #include <zmk/event_manager.h>
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
@@ -32,6 +33,9 @@ static void set_layer_symbol(lv_obj_t *label, struct zmk_sync_layer_state state)
 }
 
 static void layer_status_update_cb(struct zmk_sync_layer_state state) {
+#if YUAN_LEFT_ENABLED
+    yuan_special_oled_receive(&state);
+#endif
     struct zmk_widget_sync_layer_status *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) { set_layer_symbol(widget->obj, state); }
 }

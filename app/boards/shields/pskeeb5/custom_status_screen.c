@@ -14,6 +14,7 @@
 #include <zmk/display/widgets/sync_output_status.h>
 #include <zmk/display/widgets/sync_battery_status.h>
 #include <zmk/display/status_screen.h>
+#include <zmk/yuan_special.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/kernel.h>
 
@@ -194,6 +195,9 @@ static void show_status_screen(lv_timer_t *timer) {
     zmk_widget_sync_battery_status_init(&sync_battery_widget, screen);
     mixed_status_cell(zmk_widget_sync_battery_status_obj(&sync_battery_widget),
                 LV_ALIGN_BOTTOM_RIGHT, -1, 51, LV_TEXT_ALIGN_RIGHT, &yuan_battery_font);
+#endif
+#if YUAN_LEFT_ENABLED
+    yuan_special_oled_init(screen);
 #endif
 }
 

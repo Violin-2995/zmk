@@ -40,6 +40,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #endif // IS_ENABLED(CONFIG_ZMK_SYNC_OUTPUT)
 #if IS_ENABLED(CONFIG_ZMK_SYNC_LAYER)
 #include <zmk/events/sync_layer_state.h>
+#include <zmk/yuan_special.h>
 #endif // IS_ENABLED(CONFIG_ZMK_SYNC_LAYER)
 #if IS_ENABLED(CONFIG_ZMK_SYNC_BATTERY)
 #include <zmk/events/sync_battery_state.h>
@@ -148,6 +149,50 @@ static ssize_t split_svc_sync_output(struct bt_conn *conn, const struct bt_gatt_
 
 #if IS_ENABLED(CONFIG_ZMK_SYNC_LAYER)
 
+#if IS_ENABLED(CONFIG_SHIELD_PSKEEB5_LEFT)
+static struct zmk_sync_layer_state sync_layer_state = {.index = 0};
+static struct k_spinlock yuan_layer_spinlock;
+static bool yuan_layer_seen, yuan_layer_wake_pending;
+static void split_svc_sync_layer_work_callback(struct k_work *work) {
+    (void)work;
+    k_spinlock_key_t key = k_spin_lock(&yuan_layer_spinlock);
+    struct zmk_sync_layer_state copy = sync_layer_state;
+    bool wake = yuan_layer_wake_pending;
+    yuan_layer_wake_pending = false;
+    k_spin_unlock(&yuan_layer_spinlock, key);
+    raise_zmk_sync_layer_state(copy);
+#if IS_ENABLED(CONFIG_ZMK_DISPLAY_BLANK_ON_IDLE)
+    // A confirmation/heartbeat is not real keyboard activity.
+    if (wake) zmk_activity_note_activity();
+#else
+    (void)wake;
+#endif
+}
+static K_WORK_DEFINE(split_svc_sync_layer_work, split_svc_sync_layer_work_callback);
+static ssize_t split_svc_sync_layer(struct bt_conn *conn, const struct bt_gatt_attr *attr,
+                                    const void *buf, uint16_t len, uint16_t offset, uint8_t flags) {
+    (void)conn; (void)attr; (void)flags;
+    if (offset) return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
+    if (len != 1 && len != sizeof(struct zmk_sync_layer_state))
+        return BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
+    struct zmk_sync_layer_state next = {0};
+    memcpy(&next, buf, len);
+    if (len != 1 && next.yuan_magic != YUAN_MAGIC)
+        return BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
+    next.yuan_name[YUAN_NAME_LEN] = '\0';
+    k_spinlock_key_t key = k_spin_lock(&yuan_layer_spinlock);
+    bool wake = !yuan_layer_seen || next.index != sync_layer_state.index ||
+                next.yuan_id != sync_layer_state.yuan_id ||
+                ((next.yuan_flags ^ sync_layer_state.yuan_flags) & YUAN_SPECIAL) ||
+                memcmp(next.yuan_name, sync_layer_state.yuan_name, sizeof(next.yuan_name));
+    yuan_layer_seen = true;
+    yuan_layer_wake_pending |= wake;
+    sync_layer_state = next;
+    k_spin_unlock(&yuan_layer_spinlock, key);
+    k_work_submit(&split_svc_sync_layer_work);
+    return len;
+}
+#else
 static struct zmk_sync_layer_state sync_layer_state = {.index = 0};
 
 static void split_svc_sync_layer_work_callback(struct k_work *work) {
@@ -172,6 +217,7 @@ static ssize_t split_svc_sync_layer(struct bt_conn *conn, const struct bt_gatt_a
     return len;
 }
 
+#endif /* PSKeeb5 left */
 #endif // IS_ENABLED(CONFIG_ZMK_SYNC_LAYER)
 
 #if IS_ENABLED(CONFIG_ZMK_SYNC_BATTERY)

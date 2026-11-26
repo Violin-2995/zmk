@@ -27,6 +27,7 @@
 #include <zmk/usb.h>
 #include <zmk/ble.h>
 #include <zmk/keymap.h>
+#include <zmk/yuan_special.h>
 #include <zmk/battery.h>
 
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
@@ -236,18 +237,14 @@ int zmk_split_central_sync_layer(const zmk_event_t *eh) {
         return ret;
     }
     zmk_keymap_layer_index_t index = zmk_keymap_highest_layer_active();
-    struct zmk_split_transport_central_command command =
-        (struct zmk_split_transport_central_command){
-            .type = ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SYNC_LAYER,
-            .data =
-                {
-                    .set_layer =
-                        {
-                            .index = index,
-                            //   .label = zmk_keymap_layer_name(zmk_keymap_layer_index_to_id(index))
-                        },
-                },
-        };
+    struct zmk_sync_layer_state layer = {.index = index};
+#if YUAN_RIGHT_ENABLED
+    layer = yuan_build_sync(index);
+#endif
+    struct zmk_split_transport_central_command command = {
+        .type = ZMK_SPLIT_TRANSPORT_CENTRAL_CMD_TYPE_SYNC_LAYER,
+        .data = {.set_layer = layer},
+    };
 
     for (size_t i = 0; i < ret; i++) {
         ret = active_transport->api->send_command(source_ids[i], command);

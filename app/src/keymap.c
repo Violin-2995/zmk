@@ -15,6 +15,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/stdlib.h>
 #include <zmk/behavior.h>
 #include <zmk/keymap.h>
+#include <zmk/yuan_special.h>
 #include <zmk/physical_layouts.h>
 #include <zmk/matrix.h>
 #include <zmk/sensors.h>
@@ -576,6 +577,10 @@ int zmk_keymap_remove_layer(zmk_keymap_layer_index_t index) {
     }
 
     LOG_DBG("Removing layer index %d which is ID %d", index, keymap_layer_orders[index]);
+#if YUAN_RIGHT_ENABLED
+    // A reused layer ID must not silently inherit an old game policy.
+    yuan_forget_layer(keymap_layer_orders[index]);
+#endif
     LOG_HEXDUMP_DBG(keymap_layer_orders, ZMK_KEYMAP_LAYERS_LEN, "Order");
 
     while (index < ZMK_KEYMAP_LAYERS_LEN - 1) {
@@ -912,6 +917,10 @@ static int keymap_track_changed_bindings(const char *key, size_t len, settings_r
 }
 
 int zmk_keymap_reset_settings(void) {
+#if YUAN_RIGHT_ENABLED
+    // Only runs when the existing stock-reset path is explicitly called.
+    yuan_forget_all();
+#endif
     settings_delete(LAYER_ORDER_SETTINGS_KEY);
 
     uint8_t zmk_keymap_layer_changes[ZMK_KEYMAP_LAYERS_LEN][PENDING_ARRAY_SIZE];
