@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * PSKeeb5 right central, V3.0-alpha.2.
+ * PSKeeb5 right central, V3.0-alpha.4.
  * Dedicated encrypted BLE service; does not use Studio RPC or HID reports.
  */
 #include <zephyr/kernel.h>
@@ -23,7 +23,8 @@
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 BUILD_ASSERT(ZMK_KEYMAP_LAYERS_LEN <= YUAN_MAX_LAYERS);
 BUILD_ASSERT(IS_ENABLED(CONFIG_SETTINGS));
-BUILD_ASSERT(sizeof(struct zmk_sync_layer_state) == 17);
+BUILD_ASSERT(sizeof(struct zmk_sync_layer_state) == 20);
+BUILD_ASSERT(YUAN_MAX_LAYERS * YUAN_CATALOG_RECORD <= 512);
 
 #define YUAN_UUID(n) BT_UUID_128_ENCODE(0x9e84a100 + (n), 0x65b3, 0x4baf, \
                                       0x99a2, 0x5926d03c1e07ULL)
@@ -206,9 +207,9 @@ static ssize_t read_status(struct bt_conn *conn, const struct bt_gatt_attr *attr
     return bt_gatt_attr_read(conn, attr, buf, len, offset, wire, sizeof(wire));
 }
 
-/* 32 fixed 15-byte records, indexed by stable ID. 480 bytes <= ATT max 512.
- * Read using GATT long read. Host validates catalog against status availability.
- * Names here are the bounded ASCII OLED representation, not a second name store. */
+/* Protocol 2: 32 fixed 16-byte records, 512 bytes (ATT attribute limit).
+ * ID is implicit in record slot. Byte 0 is order; next 15 bytes are UTF-8.
+ * Host validates long reads against the status token/available mask. */
 static ssize_t read_catalog(struct bt_conn *conn, const struct bt_gatt_attr *attr,
                             void *buf, uint16_t len, uint16_t offset) {
     k_mutex_lock(&yuan_mutex, K_FOREVER);
@@ -220,14 +221,12 @@ static ssize_t read_catalog(struct bt_conn *conn, const struct bt_gatt_attr *att
     for (uint8_t id = 0; id < YUAN_MAX_LAYERS; ++id) {
         uint8_t *rec = catalog + id * YUAN_CATALOG_RECORD;
         rec[0] = YUAN_INVALID_ID;
-        rec[1] = YUAN_INVALID_ID;
     }
     for (uint8_t i = 0; i < ZMK_KEYMAP_LAYERS_LEN; ++i) {
         uint8_t id = zmk_keymap_layer_index_to_id(i);
         if (id >= ZMK_KEYMAP_LAYERS_LEN) continue;
         uint8_t *rec = catalog + id * YUAN_CATALOG_RECORD;
-        rec[0] = id; rec[1] = i;
-        yuan_name_copy((char *)(rec + 2), zmk_keymap_layer_name(id));
+        yuan_catalog_record_write(rec, i, zmk_keymap_layer_name(id));
     }
     ssize_t rc = bt_gatt_attr_read(conn, attr, buf, len, offset, catalog, sizeof(catalog));
     k_mutex_unlock(&yuan_mutex);

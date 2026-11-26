@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT
- * PSKeeb5 left OLED, V3.0-alpha.2. Existing status widgets remain intact.
+ * PSKeeb5 left OLED, V3.0-alpha.4. Existing status widgets remain intact.
  * All LVGL access is from the existing display queue or LVGL timer.
  */
 #include <zephyr/kernel.h>
@@ -7,10 +7,19 @@
 #include <stdio.h>
 #include <string.h>
 #include <zmk/yuan_special.h>
+#include "yuan_title_bitmap.h"
 
 #define YUAN_RX_TIMEOUT_MS 3400
 static lv_obj_t *overlay, *id_label, *name_label, *eng_label, *shackle, *lock_body;
 static lv_timer_t *refresh_timer;
+static lv_obj_t *name_bitmap;
+static uint8_t title_pixels[YUAN_TITLE_W * YUAN_TITLE_H];
+static char rendered_name[YUAN_NAME_LEN + 1];
+static const lv_image_dsc_t title_image = {
+    .header = {.magic = LV_IMAGE_HEADER_MAGIC, .cf = LV_COLOR_FORMAT_A8,
+               .w = YUAN_TITLE_W, .h = YUAN_TITLE_H, .stride = YUAN_TITLE_W},
+    .data_size = sizeof(title_pixels), .data = title_pixels,
+};
 static lv_obj_t *screen_parent;
 static void create_overlay(void);
 static struct zmk_sync_layer_state latest, drawn;
@@ -74,25 +83,55 @@ static void render(void) {
         lv_obj_set_pos(shackle, x + 1, 1);
         lv_obj_set_pos(lock_body, x, 5);
     }
-    const lv_font_t *font = &lv_font_montserrat_12;
-    const lv_font_t *choices[] = {&lv_font_montserrat_18, &lv_font_montserrat_16,
-                                  &lv_font_montserrat_12};
-    for (size_t i = 0; i < sizeof(choices)/sizeof(choices[0]); ++i) {
-        if (choices[i]->line_height + lv_font_montserrat_10.line_height <= 32 && text_width(choices[i], name) <= 124) {
-            font = choices[i]; break;
+    if (yuan_name_has_nonascii(name)) {
+        if (!name_bitmap) {
+            name_bitmap = lv_image_create(overlay);
+            if (name_bitmap) {
+                lv_image_set_src(name_bitmap, &title_image);
+                lv_obj_set_style_image_recolor(name_bitmap, fg, LV_PART_MAIN);
+                lv_obj_set_style_image_recolor_opa(name_bitmap, LV_OPA_COVER, LV_PART_MAIN);
+                lv_obj_align(name_bitmap, LV_ALIGN_BOTTOM_MID, 0, -1);
+            }
         }
-    }
-    if (text_width(font, name) > 124) {
-        size_t n = strlen(name);
-        while (n > 1 && text_width(font, name) > 124) {
-            name[n - 2] = '~'; name[n - 1] = '\0'; --n;
+        if (name_bitmap) {
+            if (strcmp(rendered_name, name)) {
+                yuan_title_render(title_pixels, name);
+                memcpy(rendered_name, name, sizeof(rendered_name));
+                lv_image_cache_drop(&title_image);
+                lv_obj_invalidate(name_bitmap);
+            }
+            set_hidden(name_label, true);
+            set_hidden(name_bitmap, false);
+        } else {
+            /* An allocation failure must not damage the ordinary screen. */
+            lv_label_set_text(name_label, "Layer name?");
+            lv_obj_set_style_text_font(name_label, &lv_font_montserrat_12, LV_PART_MAIN);
+            lv_obj_align(name_label, LV_ALIGN_BOTTOM_MID, 0, 0);
+            set_hidden(name_label, false);
         }
+    } else {
+        if (name_bitmap) set_hidden(name_bitmap, true);
+        set_hidden(name_label, false);
+        const lv_font_t *font = &lv_font_montserrat_12;
+        const lv_font_t *choices[] = {&lv_font_montserrat_18, &lv_font_montserrat_16,
+                                      &lv_font_montserrat_12};
+        for (size_t i = 0; i < sizeof(choices)/sizeof(choices[0]); ++i) {
+            if (choices[i]->line_height + lv_font_montserrat_10.line_height <= 32 && text_width(choices[i], name) <= 124) {
+                font = choices[i]; break;
+            }
+        }
+        if (text_width(font, name) > 124) {
+            size_t n = strlen(name);
+            while (n > 1 && text_width(font, name) > 124) {
+                name[n - 2] = '~'; name[n - 1] = '\0'; --n;
+            }
+        }
+        lv_obj_set_style_text_font(name_label, font, LV_PART_MAIN);
+        lv_label_set_text(name_label, name);
+        lv_obj_set_width(name_label, 124);
+        lv_obj_set_height(name_label, LV_SIZE_CONTENT);
+        lv_obj_align(name_label, LV_ALIGN_BOTTOM_MID, 0, 0);
     }
-    lv_obj_set_style_text_font(name_label, font, LV_PART_MAIN);
-    lv_label_set_text(name_label, name);
-    lv_obj_set_width(name_label, 124);
-    lv_obj_set_height(name_label, LV_SIZE_CONTENT);
-    lv_obj_align(name_label, LV_ALIGN_BOTTOM_MID, 0, 0);
     set_hidden(overlay, false);
     shown = true;
 }
